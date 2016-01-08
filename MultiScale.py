@@ -1,19 +1,19 @@
-#### Libraries
+﻿#### Libraries
 # Standard library
 import pickle
 import gzip
 
 # Third-party libraries
 import numpy as np
-import cv2
 import Constants as c
 import theano
-from network import Network,ConvPoolLayer,RandCombLayer
+from network import Network,ConvPoolLayer,RandCombConvLayer1, RandCombConvLayer2
 import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.nnet import softmax
 from theano.tensor import shared_randomstreams
 from theano.tensor.signal import downsample
+import functions
 
 # Activation functions for neurons
 from theano.tensor import tanh
@@ -67,30 +67,41 @@ class MultiScale(object):
         """
         filter_shape1=c.filter_shape1
         filter_shape2=c.filter_shape2
+        filter_shape3=c.filter_shape3
+        filter_shape4=c.filter_shape4
         poolsize=c.poolsize
         n_out1=(np.prod(filter_shape1)/np.prod(poolsize))
         n_out2=(np.prod(filter_shape2)/np.prod(poolsize))
+        n_out3=(np.prod(filter_shape3)/np.prod(poolsize))
+        n_out4=(np.prod(filter_shape4)/np.prod(poolsize))
         self.wt_conv=[theano.shared(np.asarray(np.random.normal(loc=0,scale=np.sqrt(1.0/n_out1),size=filter_shape1),dtype=theano.config.floatX),borrow=True),
                       theano.shared(np.asarray(np.random.normal(loc=0,scale=np.sqrt(1.0/n_out2),size=filter_shape2),dtype=theano.config.floatX),borrow=True)]
-        self.b_conv= theano.shared(np.asarray(np.random.normal(loc=0, scale=1.0, size=(16)),dtype=theano.config.floatX),borrow=True)
+        self.b_conv= theano.shared(np.asarray(np.random.normal(loc=0, scale=1.0, size=(c.feature_map_count[0])),dtype=theano.config.floatX),borrow=True)
+        self.wt64 = theano.shared(np.asarray(np.random.normal(loc=0,scale=np.sqrt(1.0/n_out3),size=filter_shape3),dtype=theano.config.floatX),borrow=True)
+        self.b64= theano.shared(np.asarray(np.random.normal(loc=0, scale=1.0, size=(c.feature_map_count[1])),dtype=theano.config.floatX),borrow=True)
+        self.wt256 = theano.shared(np.asarray(np.random.normal(loc=0,scale=np.sqrt(1.0/n_out4),size=filter_shape4),dtype=theano.config.floatX),borrow=True)
+        self.b256= theano.shared(np.asarray(np.random.normal(loc=0, scale=1.0, size=(c.feature_map_count[2])),dtype=theano.config.floatX),borrow=True)
+
+        """
         self.wt64=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=(16,64)),dtype=theano.config.floatX),borrow=True)
         self.b64=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=64),dtype=theano.config.floatX),borrow=True)
         self.wt256=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=(64,256)),dtype=theano.config.floatX),borrow=True)
         self.b256=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=256),dtype=theano.config.floatX),borrow=True)
+        """
         self.input=[T.tensor4("x1"),T.tensor4("x2"),T.tensor4("x3")]
         self.y=T.tensor3("y")
         self.nets=[Network([
             ConvPoolLayer(self.wt_conv,self.b_conv),
-            RandCombLayer(self.wt64,self.b64),
-            RandCombLayer(self.wt256,self.b256)],self.input[0],c.image_shape1),
+            RandCombConvLayer1(self.wt64,self.b64),
+            RandCombConvLayer2(self.wt256,self.b256)],self.input[0],c.image_shape1),
                    Network([
             ConvPoolLayer(self.wt_conv,self.b_conv),
-            RandCombLayer(self.wt64,self.b64),
-            RandCombLayer(self.wt256,self.b256)],self.input[1],c.image_shape2),
+            RandCombConvLayer1(self.wt64,self.b64),
+            RandCombConvLayer2(self.wt256,self.b256)],self.input[1],c.image_shape2),
                    Network([
             ConvPoolLayer(self.wt_conv,self.b_conv),
-            RandCombLayer(self.wt64,self.b64),
-            RandCombLayer(self.wt256,self.b256)],self.input[2],c.image_shape3)]
+            RandCombConvLayer1(self.wt64,self.b64),
+            RandCombConvLayer2(self.wt256,self.b256)],self.input[2],c.image_shape3)]
 
         self.num_class=c.num_class
         self.softmax=SoftmaxLayer(768,self.num_class)
@@ -100,9 +111,9 @@ class MultiScale(object):
         """output1=skimage.transform.pyramid_expand(self.nets[0].output,upscale=image_size/c.net_out_size[0], sigma=None, order=1, mode='reflect', cval=0)
         output2=skimage.transform.pyramid_expand(self.nets[1].output,upscale=image_size/c.net_out_size[1], sigma=None, order=1, mode='reflect', cval=0)
         output3=skimage.transform.pyramid_expand(self.nets[2].output,upscale=image_size/c.net_out_size[2], sigma=None, order=1, mode='reflect', cval=0)"""
-        output1=functions.upsample4D(self.nets[0].output,image_size/c.net_out_size[0],self.mini_batch_size,image_size)
-        output2=functions.upsample4D(self.nets[1].output,image_size/c.net_out_size[1],self.mini_batch_size,image_size)
-        output3=functions.upsample4D(self.nets[2].output,image_size/c.net_out_size[2],self.mini_batch_size,image_size)
+        output1=functions.upsample(self.nets[0].output,image_size/c.net_out_size[0])
+        output2=functions.upsample(self.nets[1].output,image_size/c.net_out_size[1])
+        output3=functions.upsample(self.nets[2].output,image_size/c.net_out_size[2])
         self.upscaled_output=T.concatenate([output1,output2,output3],axis=1)
         self.softmax.set_inpt(self.upscaled_output)
         self.output=self.softmax.output
