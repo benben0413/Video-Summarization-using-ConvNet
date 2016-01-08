@@ -32,8 +32,8 @@ def upsample(input,downsample_factor):
     num_batch, num_channels, height, width = input.shape
 
     # grid of (x_t, y_t, 1), eq (1) in ref [1]
-    out_height = T.cast(height / downsample_factor[0], 'int32')
-    out_width = T.cast(width / downsample_factor[1], 'int32')
+    out_height = T.cast(height / downsample_factor, 'int32')
+    out_width = T.cast(width / downsample_factor, 'int32')
     grid = _meshgrid(out_height, out_width)
 
     # Transform A x (x_t, y_t, 1)^T -> (x_s, y_s)

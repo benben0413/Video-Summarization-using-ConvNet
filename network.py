@@ -1,9 +1,9 @@
-﻿import pickle
+import pickle
 
 import numpy as np
 import Constants as c 
 import theano
-import theano.tensor as tensor
+import theano.tensor as T
 from theano.tensor.nnet import conv
 from theano.tensor.nnet import softmax
 from theano.tensor import shared_randomstreams
@@ -76,8 +76,9 @@ class ConvPoolLayer(object):
         conv_out_UV = conv.conv2d(
             input=self.UVPadded, filters=self.w2, filter_shape=self.filter_shape2)
         # what is the dimension of output coming from here ?
+        #it is (mini_batch_size,6,256,256) if input is (mini_batch_size,2,256,256) and filter shape is (6,2,7,7) :P
 
-        conv_out=tensor.concatenate([conv_out_Y,conv_out_UV],axis=1)
+        conv_out=T.concatenate([conv_out_Y,conv_out_UV],axis=1)
         activation=self.activation_fn(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
         pooled_out = downsample.max_pool_2d(
             input=activation, ds=self.poolsize, ignore_border=True)
@@ -88,7 +89,7 @@ class RandCombConvLayer1(object):
     """ Used to create a combination of a convolutional and a max-pooling
     layer. """
 
-    def __init__(self,wt,b,filter_shape):
+    def __init__(self,wt,b,rand_comb):
         """
         `image_shape` is a tuple of length 4, whose entries are the
         mini-batch size, the number of input feature maps, the image
@@ -98,36 +99,29 @@ class RandCombConvLayer1(object):
         self.activation_fn=c.activation_fn
         self.wt = wt        
         self.b = b
+        self.rand_comb=rand_comb
         self.filter_shape = c.filter_shape3
         self.padding = c.padding
+        self.poolsize = c.poolsize
+        self.activation_fn=c.activation_fn
 
     def set_inpt(self,inpt,image_shape,mini_batch_size):
         self.inpt=inpt
         self.inptPadded = functions.pad(self.inpt,self.padding)
-        conv_in_random = random.sample(self.inptPadded,c.random_num_filters[0])
-        for i in range(7):
-            conv_in_random = tensor.concatenate([conv_in_random,random.sample(self.inptPadded),8])
-        conv_out = conv.conv2d(
-            input = conv_in_random, filters = self.wt, filter_shape = self.filter_shape)
+        convolved=[]
+        for i,rand_selection in enumerate(self.rand_comb):
+            inp=(T.concatenate([self.inptPadded[:,k,:,:] for k in rand_selection])).dimshuffle('x',0,1,2)
+            conv_out = conv.conv2d(input =inp, filters = self.wt[i], filter_shape = self.filter_shape)
+            convolved.append(conv_out)
+        conv_out=T.concatenate(convolved,axis=1)
         activation=self.activation_fn(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
-        pooled_out = downsample.max_pool_2d(
-            input=activation, ds=self.poolsize, ignore_border=True)
+        pooled_out = downsample.max_pool_2d(input=activation, ds=self.poolsize, ignore_border=True)
         self.output=pooled_out
 
-        #for i in xrange(mini_batch_size):
-        #    inp=inpt[i].T
-        #    t=tensor.dot(inp,self.wt)
-        #    k=t.T
-        #    j=k.reshape((1,n,s[2],s[3]))
-        #    out.append(t.T)
-            
-        #output=tensor.concatenate(out,axis=0)
-        #activation=self.activation_fn(output + self.b.dimshuffle('x', 0, 'x', 'x'))
-        #self.output=activation
 
 class RandCombConvLayer2(object):
 
-    def __init__(self,wt,b):
+    def __init__(self,wt,rand_comb):
         """
         `image_shape` is a tuple of length 4, whose entries are the
         mini-batch size, the number of input feature maps, the image
@@ -135,39 +129,20 @@ class RandCombConvLayer2(object):
 
         """
         self.activation_fn=c.activation_fn
-        self.wt = wt        
-        self.b = b
+        self.wt = wt
+        self.rand_comb=rand_comb
         self.filter_shape=c.filter_shape4
         self.padding = c.padding
 
     def set_inpt(self,inpt,image_shape,mini_batch_size):
         self.inpt=inpt
         self.inptPadded = functions.pad(self.inpt,self.padding)
-        conv_in_random = random.sample(self.inptPadded,c.random_num_filters[1])
-        for i in range(7):
-            conv_in_random = tensor.concatenate([conv_in_random,random.sample(self.inptPadded),32])
-        conv_out = conv.conv2d(
-            input = conv_in_random, filters = self.wt, filter_shape = self.filter_shape)
-        #activation=self.activation_fn(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
-        #pooled_out = downsample.max_pool_2d(
-        #    input=activation, ds=self.poolsize, ignore_border=True)
-        self.output=pooled_out
+        convolved=[]
+        for i,rand_selection in enumerate(self.rand_comb):
+            inp=(T.concatenate([self.inptPadded[:,k,:,:] for k in rand_selection])).dimshuffle('x',0,1,2)
+            conv_out = conv.conv2d(input =inp, filters = self.wt[i], filter_shape = self.filter_shape)
+            convolved.append(conv_out)
+        conv_out=T.concatenate(convolved,axis=1)
+        self.output=conv_out
 
-
-
-        #self.inpt=inpt
-        #s=list(image_shape)
-        #s[2]=(s[2]-6)/2
-        #s[3]=(s[3]-6)/2
-        #out=[]
-        #for i in xrange(mini_batch_size):
-        #    inp=inpt[i].T
-        #    t=tensor.dot(inp,self.wt)
-        #    k=t.T
-        #    j=k.reshape((1,n,s[2],s[3]))
-        #    out.append(t.T)
-            
-        #output=tensor.concatenate(out,axis=0)
-        #activation=self.activation_fn(output + self.b.dimshuffle('x', 0, 'x', 'x'))
-        #self.output=activation
 
