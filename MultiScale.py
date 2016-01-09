@@ -14,11 +14,12 @@ from theano.tensor.nnet import softmax
 from theano.tensor import shared_randomstreams
 from theano.tensor.signal import downsample
 import functions,random
+from theano.compile.debugmode import DebugMode
 
 # Activation functions for neurons
 from theano.tensor import tanh
 
-theano.config.mode='FAST_COMPILE'
+#theano.config.mode='FAST_COMPILE'
 #### Constants
 GPU = True
 if GPU:
@@ -93,12 +94,6 @@ class MultiScale(object):
             rand_comb2.append(rand_selection)
             self.wt256.append(theano.shared(np.asarray(np.random.normal(loc=0,scale=np.sqrt(1.0/n_out4),size=filter_shape4),dtype=theano.config.floatX),borrow=True))
 
-        """
-        self.wt64=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=(16,64)),dtype=theano.config.floatX),borrow=True)
-        self.b64=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=64),dtype=theano.config.floatX),borrow=True)
-        self.wt256=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=(64,256)),dtype=theano.config.floatX),borrow=True)
-        self.b256=theano.shared(np.asarray(np.random.normal(loc=0,scale=1.0,size=256),dtype=theano.config.floatX),borrow=True)
-        """
         self.input1=T.tensor4("input1")
         self.input2=T.tensor4("input2")
         self.input3=T.tensor4("input3")
@@ -121,9 +116,6 @@ class MultiScale(object):
         self.mini_batch_size = c.mini_batch_size
         self.params =[w for w in self.wt_conv]+self.wt64+[self.b64]+self.wt256+ [self.b_conv]+ self.softmax.params
         image_size=c.image_size
-        """output1=skimage.transform.pyramid_expand(self.nets[0].output,upscale=image_size/c.net_out_size[0], sigma=None, order=1, mode='reflect', cval=0)
-        output2=skimage.transform.pyramid_expand(self.nets[1].output,upscale=image_size/c.net_out_size[1], sigma=None, order=1, mode='reflect', cval=0)
-        output3=skimage.transform.pyramid_expand(self.nets[2].output,upscale=image_size/c.net_out_size[2], sigma=None, order=1, mode='reflect', cval=0)"""
         output1=functions.upsample(self.nets[0].output,image_size/c.net_out_size[0])
         output2=functions.upsample(self.nets[1].output,image_size/c.net_out_size[1])
         output3=functions.upsample(self.nets[2].output,image_size/c.net_out_size[2])
@@ -138,18 +130,16 @@ class MultiScale(object):
         self.y_out = T.argmax(self.output, axis=1)
         return T.mean(T.eq(self.y, self.y_out))
     
-    def SGD(self,training_data,epochs,eta, lmbda=0.0):
+    def SGD(self,training_data,validation_data,epochs,eta, lmbda=0.0):
         """Train the network using mini-batch stochastic gradient descent."""
         # define the (regularized) cost function, symbolic gradients, and updates
         l2_norm_squared = sum([(self.nets[0].layers[0].w1**2).sum() ,(self.nets[0].layers[0].w2**2).sum() ,(self.softmax.w**2).sum() ])
-        cost = self.cost()+\
-               0.5*lmbda*l2_norm_squared/c.train_size
+        cost = self.cost()+ 0.5*lmbda*l2_norm_squared/c.train_size
         grads = T.grad(cost, self.params)
-        updates = [(param, param-eta*grad)
-                   for param, grad in zip(self.params, grads)]
+        updates = [(param, param-eta*grad) for param,grad in zip(self.params, grads)]
         
         train1,train2,train3,training_y = training_data
-
+        validation1,validation2,validation3,validation_y = validation_data
         # define functions to train a mini-batch, and to compute the
         # accuracy in validation and test mini-batches.
         i = T.lscalar() # mini-batch index
@@ -170,15 +160,19 @@ class MultiScale(object):
                 train3[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
                 self.y:
                 training_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]                
-            },on_unused_input='warn')
-        """validate_mb_accuracy = theano.function(
-            [], self.accuracy(),
+            },on_unused_input='warn', mode='DebugMode')
+        validate_mb_accuracy = theano.function(
+            [i], self.accuracy(),
             givens={
-                self.input:
-                validation_x,
+                self.input1:
+                validation1[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.input2:
+                validation2[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.input3:
+                validation3[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
                 self.y:
-                validation_y
-            })"""
+                validation_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]                
+            },on_unused_input='warn', mode='DebugMode')
         # Do the actual training
         best_validation_accuracy = 0.0
         for epoch in xrange(epochs):
@@ -186,6 +180,11 @@ class MultiScale(object):
             for i in xrange(l[0]):
                 cost_ij = train_mb(i)
                 print cost_ij
+            validation_accuracies=[]
+            for j in xrange(num_validation_batches):
+                validation_accuracies.append(validate_mb_accuracy(j))
+            validation_accuracy = np.mean(validation_accuracies)
+            print validation_accuracy
 
                     
         
