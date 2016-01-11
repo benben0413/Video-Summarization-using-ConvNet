@@ -14,13 +14,12 @@ from theano.tensor.nnet import softmax
 from theano.tensor import shared_randomstreams
 from theano.tensor.signal import downsample
 import functions,random
-from theano.compile.debugmode import DebugMode
+
 
 # Activation functions for neurons
 from theano.tensor import tanh
 
-#theano.config.mode='FAST_COMPILE'
-#### Constants
+
 GPU = False
 if GPU:
     print "Trying to run under a GPU.  If this is not desired, then modify "+\
@@ -134,12 +133,11 @@ class MultiScale(object):
     def SGD(self,training_data,validation_data,epochs,eta, lmbda=0.0):
         """Train the network using mini-batch stochastic gradient descent."""
         # define the (regularized) cost function, symbolic gradients, and updates
-        l2_norm_squared = sum([(self.nets[0].layers[0].w1**2).sum() ,(self.nets[0].layers[0].w2**2).sum(),(sum([w**2 for w in self.nets[0].layers[1].wt])).sum()\
-                               ,(sum([w**2 for w in self.nets[0].layers[2].wt])).sum(),(self.softmax.w**2).sum() ])
+        l2_norm_squared = sum([(self.nets[0].layers[0].w1**2).sum() ,(self.nets[0].layers[0].w2**2).sum(),(self.nets[0].layers[1].w**2).sum(),(self.nets[0].layers[2].w**2).sum() ,(self.softmax.w**2).sum() ])
         cost = self.cost()+ 0.5*lmbda*l2_norm_squared/c.train_size
         grads = T.grad(cost, self.params)
         updates = [(param, param-eta*grad) for param,grad in zip(self.params, grads)]
-        #updates = theano.shared([[param, param-eta*grad] for param,grad in zip(self.params, grads)])
+        
         train1,train2,train3,training_y = training_data
         validation1,validation2,validation3,validation_y = validation_data
         # define functions to train a mini-batch, and to compute the
@@ -151,6 +149,32 @@ class MultiScale(object):
         #updates-expressions for new shared variable values
         #givens-iterable over pairs (V1,V2) v1,v2 in a pair should have the same type
         print "SGD"
+        awai = theano.function(
+            [i],self.cost(),
+            givens={
+                self.input1:
+                train1[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.input2:
+                train2[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.input3:
+                train3[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.y:
+                training_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
+                },profile=True)
+        print "cost"
+        awai = theano.function(
+            [i],cost,
+            givens={
+                self.input1:
+                train1[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.input2:
+                train2[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.input3:
+                train3[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
+                self.y:
+                training_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
+                },profile=True)
+        print "cost"
         train_mb = theano.function(
             [i], cost, updates=updates,
             givens={
