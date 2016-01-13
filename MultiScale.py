@@ -148,8 +148,9 @@ class MultiScale(object):
         i = T.lscalar() # mini-batch index
 
         print "SGD"
+
         train_mb = theano.function(
-            [i], cost, updates=updates,
+            [i], cost,updates=updates,
             givens={
                 self.input1:
                 train1[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
