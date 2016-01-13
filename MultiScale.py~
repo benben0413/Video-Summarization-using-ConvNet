@@ -136,14 +136,14 @@ class MultiScale(object):
         cost = self.cost()+ 0.5*lmbda*l2_norm_squared/c.train_size
         grads = T.grad(cost, self.params)
         updates = [(param, param-eta*grad) for param,grad in zip(self.params, grads)]
-        train1=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        train2=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        train3=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        training_y=theano.shared(np.ndarray((1,1,1),dtype=theano.config.floatX),borrow=True)
-        validation1=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        validation2=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        validation3=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        validation_y=theano.shared(np.ndarray((1,1,1),dtype=theano.config.floatX),borrow=True)
+        train1=theano.shared(np.random.rand((50,3,64,64)).astype(dtype=theano.config.floatX),borrow=True)
+        train2=theano.shared(np.random.rand((50,3,128,128)).astype(dtype=theano.config.floatX),borrow=True)
+        train3=theano.shared(np.random.rand((50,3,256,256)).astype(dtype=theano.config.floatX),borrow=True)
+        training_y=theano.shared(np.random.rand((50,256,256)).astype(dtype=theano.config.floatX),borrow=True)
+        validation1=theano.shared(np.random.rand((50,3,64,64)).astype(dtype=theano.config.floatX),borrow=True)
+        validation2=theano.shared(np.random.rand((50,3,128,128)).astype(dtype=theano.config.floatX),borrow=True)
+        validation3=theano.shared(np.random.rand((50,3,256,256)).astype(dtype=theano.config.floatX),borrow=True)
+        validation_y=theano.shared(np.random.rand((50,256,256)).astype(dtype=theano.config.floatX),borrow=True)
         
         i = T.lscalar() # mini-batch index
 
