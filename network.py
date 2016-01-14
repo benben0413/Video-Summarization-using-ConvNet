@@ -111,7 +111,8 @@ class RandCombConvLayer1(object):
         del wt,b,rand_comb
         
     def set_inpt(self,inpt,image_shape,mini_batch_size):
-        self.inptPadded = functions.pad(inpt,self.padding)
+	l=list(image_shape)
+        self.inptPadded = functions.pad(inpt.reshape((1,16,l[2]/2,l[3]/2)),self.padding)
         convolved=[]
         for i,rand_selection in enumerate(self.rand_comb):
             inp=(T.concatenate([self.inptPadded[:,k,:,:] for k in rand_selection])).dimshuffle('x',0,1,2)
@@ -122,7 +123,7 @@ class RandCombConvLayer1(object):
         activation=self.activation_fn(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
         pooled_out = downsample.max_pool_2d(input=activation, ds=self.poolsize, ignore_border=True)
         self.output=pooled_out
-        del inpt,convolved,conv_out,rand_selection,activation,pooled_out
+        del l,inpt,convolved,conv_out,rand_selection,activation,pooled_out
 
 
 class RandCombConvLayer2(object):
@@ -142,7 +143,8 @@ class RandCombConvLayer2(object):
         del wt,rand_comb
 
     def set_inpt(self,inpt,image_shape,mini_batch_size):
-        self.inptPadded = functions.pad(inpt,self.padding)
+	l=list(image_shape)
+        self.inptPadded = functions.pad(inpt.reshape((1,64,l[2]/4,l[3]/4)),self.padding)
         convolved=[]
         for i,rand_selection in enumerate(self.rand_comb):
             inp=(T.concatenate([self.inptPadded[:,k,:,:] for k in rand_selection])).dimshuffle('x',0,1,2)
@@ -151,5 +153,5 @@ class RandCombConvLayer2(object):
             del inp,conv_out
         conv_out=T.concatenate(convolved,axis=1)
         self.output=conv_out
-        del inpt,convolved,conv_out,rand_selection
+        del l,inpt,convolved,conv_out,rand_selection
 

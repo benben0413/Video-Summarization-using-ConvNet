@@ -4,7 +4,7 @@ import theano
 import Constants as c
 import numpy as np
 import sys
-sys.setrecursionlimit(10000)
+sys.setrecursionlimit(20000)
 
 def train_loader():
     nn=MultiScale()

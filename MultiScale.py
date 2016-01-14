@@ -52,8 +52,9 @@ class SoftmaxLayer(object):
         self.params = [self.w, self.b]
 
     def set_inpt(self, inpt):
-        self.inpt = inpt.reshape((self.mini_batch_size, self.n_in))
-        self.output = softmax(T.dot(self.inpt, self.w) + self.b)
+        self.inpt = inpt.dimshuffle(0,2,3,1)
+	o=T.dot(self.inpt,self.w)+self.b
+        self.output = softmax(o.reshape((256*256,33)))
         self.y_out = T.argmax(self.output, axis=1)
         
 
@@ -94,7 +95,7 @@ class MultiScale(object):
         self.input1=T.tensor4("input1")
         self.input2=T.tensor4("input2")
         self.input3=T.tensor4("input3")
-        self.y=T.tensor3("y")
+        self.y=T.tensor4("y")
         self.nets=[Network([
             ConvPoolLayer(self.wt_conv,self.b_conv),
             RandCombConvLayer1(self.wt64,self.b64,rand_comb),
@@ -122,11 +123,12 @@ class MultiScale(object):
         del filter_shape1,filter_shape2,filter_shape3,filter_shape4,poolsize,n_out1,n_out2,n_out3,n_out4,output1,output2,output3,image_size,rand_comb,rand_comb2,rand_selection
         
     def cost(self):
-        return -T.mean(T.dot(T.log(self.output),self.y))
+       	#return -T.mean(T.dot(T.log(self.output),k))
 
     def accuracy(self):
         self.y_out = T.argmax(self.output, axis=1)
-        return T.mean(T.eq(self.y, self.y_out))
+	y=self.y.reshape((256*256,))
+        return T.mean(T.eq(y, self.y_out))
     
     def SGD(self,epochs,eta, lmbda=0.0):
         """Train the network using mini-batch stochastic gradient descent."""
@@ -139,18 +141,18 @@ class MultiScale(object):
         train1=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
         train2=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
         train3=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        training_y=theano.shared(np.ndarray((1,1,1),dtype=theano.config.floatX),borrow=True)
+        training_y=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
         validation1=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
         validation2=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
         validation3=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
-        validation_y=theano.shared(np.ndarray((1,1,1),dtype=theano.config.floatX),borrow=True)
+        validation_y=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
         
         i = T.lscalar() # mini-batch index
 
         print "SGD"
 
         train_mb = theano.function(
-            [i], cost,updates=updates,
+            [i],cost,
             givens={
                 self.input1:
                 train1[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
@@ -162,18 +164,17 @@ class MultiScale(object):
                 training_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]                
             })
         print "train_mb"
-
         validate_mb_accuracy = theano.function(
             [i], self.accuracy(),
             givens={
                 self.input1:
-                validation1[i*50: (i+1)*50],
+                validation1[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
                 self.input2:
-                validation2[i*50: (i+1)*50],
+                validation2[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
                 self.input3:
-                validation3[i*50: (i+1)*50],
+                validation3[i*self.mini_batch_size: (i+1)*self.mini_batch_size],
                 self.y:
-                validation_y[i*50: (i+1)*50]                
+                validation_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]                
             })
         print "phew"
 
@@ -199,7 +200,8 @@ class MultiScale(object):
                     validation2.set_value(pickle.load(validate_images))
                     validation3.set_value(pickle.load(validate_images))
                     validation_y.set_value(pickle.load(validate_labels))
-                    validation_accuracies.append(validate_mb_accuracy(j))
+		    for k in xrange(validation1.shape.eval()[0]):
+                        validation_accuracies.append(validate_mb_accuracy(k))
                 validation_accuracy = np.mean(validation_accuracies)
                 print validation_accuracy
 
