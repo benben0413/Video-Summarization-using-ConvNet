@@ -184,7 +184,7 @@ class MultiScale(object):
         train_labels = open('train_labels.pkl', 'rb')
         validate_labels = open('validate_labels.pkl', 'rb')
         lb = preprocessing.LabelBinarizer()
-        binary_encoded=np.ndarray((1,256,256,34))
+        binary_encoded=np.ndarray((50,256,256,34))
         lb.fit([k for k in xrange(34)])              
         # Do the actual training
         for epoch in xrange(epochs):
@@ -193,10 +193,11 @@ class MultiScale(object):
                 train2.set_value(pickle.load(train_images))
                 train3.set_value(pickle.load(train_images))
                 temp=pickle.load(train_labels)
-                for u in xrange(256):
-                    binary_encoded[0,u,:,:]=lb.transform(temp[u])
-                training_y.set_value(binary_encoded)
                 l=train1.shape.eval()
+		for u in xrange(l[0]):
+		    for v in xrange(256):
+                    	binary_encoded[u,v,:,:]=lb.transform(temp[u][v])
+                training_y.set_value(binary_encoded)
                 for i in xrange(l[0]):
                     cost_ij = train_mb(i)
                     print cost_ij
@@ -206,8 +207,10 @@ class MultiScale(object):
                     validation2.set_value(pickle.load(validate_images))
                     validation3.set_value(pickle.load(validate_images))
                     temp=pickle.load(validate_labels)
-                    for u in xrange(256):
-                        binary_encoded[0,u,:,:]=lb.transform(temp[u])
+		    l=validate1.shape.eval()
+                    for u in xrange(l[0]):
+			for v in xrange(256):
+                            binary_encoded[u,v,:,:]=lb.transform(temp[u][v])
                     validation_y.set_value(binary_encoded)
 		    for k in xrange(validation1.shape.eval()[0]):
                         validation_accuracies.append(validate_mb_accuracy(k))
