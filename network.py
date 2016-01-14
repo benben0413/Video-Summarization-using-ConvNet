@@ -12,10 +12,6 @@ import random
 import functions 
 from theano.tensor import tanh
 
-
-
-# Later to remove image shape as input to the network init
-
 class Network(object):
 
     def __init__(self,layers,x,image_shape):
@@ -29,12 +25,11 @@ class Network(object):
         self.x = x
         init_layer= self.layers[0]
         init_layer.set_inpt(self.x,self.image_shape,c.mini_batch_size)
-        f=c.random_num_filters
         for j in xrange(1, len(self.layers)):
             prev_layer, layer  = self.layers[j-1], self.layers[j]
             layer.set_inpt(prev_layer.output,self.image_shape,c.mini_batch_size)
         self.output = self.layers[-1].output
-        del f,init_layer,prev_layer,layer
+        del init_layer,prev_layer,layer
         
 
 #### Define layer types
@@ -78,9 +73,7 @@ class ConvPoolLayer(object):
             input=self.YPadded, filters=self.w1, filter_shape=self.filter_shape1)
         conv_out_UV = conv.conv2d(
             input=self.UVPadded, filters=self.w2, filter_shape=self.filter_shape2)
-        # what is the dimension of output coming from here ?
-        #it is (mini_batch_size,6,256,256) if input is (mini_batch_size,2,256,256) and filter shape is (6,2,7,7) :P
-
+        
         conv_out=T.concatenate([conv_out_Y,conv_out_UV],axis=1)
         activation=self.activation_fn(conv_out + self.b.dimshuffle('x', 0, 'x', 'x'))
         pooled_out = downsample.max_pool_2d(

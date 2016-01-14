@@ -13,6 +13,7 @@ from theano.tensor.nnet import softmax
 from theano.tensor import shared_randomstreams
 from theano.tensor.signal import downsample
 import functions,random
+from sklearn import preprocessing
 
 
 # Activation functions for neurons
@@ -123,11 +124,11 @@ class MultiScale(object):
         del filter_shape1,filter_shape2,filter_shape3,filter_shape4,poolsize,n_out1,n_out2,n_out3,n_out4,output1,output2,output3,image_size,rand_comb,rand_comb2,rand_selection
         
     def cost(self):
-       	#return -T.mean(T.dot(T.log(self.output),k))
+       	return -T.mean(T.dot(T.log(self.output.reshape((1,256,256,34))),self.y))
 
     def accuracy(self):
         self.y_out = T.argmax(self.output, axis=1)
-	y=self.y.reshape((256*256,))
+	y=T.argmax(self.y.reshape((256*256,34)),axis=1)
         return T.mean(T.eq(y, self.y_out))
     
     def SGD(self,epochs,eta, lmbda=0.0):
@@ -182,14 +183,19 @@ class MultiScale(object):
         validate_images = open('validate_images.pkl', 'rb')
         train_labels = open('train_labels.pkl', 'rb')
         validate_labels = open('validate_labels.pkl', 'rb')
-    
+        lb = preprocessing.LabelBinarizer()
+        binary_encoded=np.ndarray((1,256,256,34))
+        lb.fit([k for k in xrange(34)])              
         # Do the actual training
         for epoch in xrange(epochs):
             for k in xrange(c.num_training_batches):
                 train1.set_value(pickle.load(train_images))
                 train2.set_value(pickle.load(train_images))
                 train3.set_value(pickle.load(train_images))
-                training_y.set_value(pickle.load(train_labels))
+                temp=pickle.load(train_labels)
+                for u in xrange(256):
+                    binary_encoded[0,u,:,:]=lb.transform(temp[u])
+                training_y.set_value(binary_encoded)
                 l=train1.shape.eval()
                 for i in xrange(l[0]):
                     cost_ij = train_mb(i)
@@ -199,7 +205,10 @@ class MultiScale(object):
                     validation1.set_value(pickle.load(validate_images))
                     validation2.set_value(pickle.load(validate_images))
                     validation3.set_value(pickle.load(validate_images))
-                    validation_y.set_value(pickle.load(validate_labels))
+                    temp=pickle.load(validate_labels)
+                    for u in xrange(256):
+                        binary_encoded[0,u,:,:]=lb.transform(temp[u])
+                    validation_y.set_value(binary_encoded)
 		    for k in xrange(validation1.shape.eval()[0]):
                         validation_accuracies.append(validate_mb_accuracy(k))
                 validation_accuracy = np.mean(validation_accuracies)
