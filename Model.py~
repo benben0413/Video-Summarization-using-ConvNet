@@ -8,7 +8,7 @@ sys.setrecursionlimit(20000)
 
 def train_loader():
     nn=MultiScale()
-    epochs=50
+    epochs=10
     eta=0.001
     lmbda=0.00001
     nn.SGD(epochs,eta,lmbda);

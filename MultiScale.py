@@ -1,7 +1,7 @@
 #### Libraries
 # Standard library
 import pickle
-
+import cPickle
 # Third-party libraries
 import numpy as np
 import Constants as c
@@ -179,15 +179,15 @@ class MultiScale(object):
             })
         print "phew"
 
-        train_images = open('train_images.pkl', 'rb')
-        validate_images = open('validate_images.pkl', 'rb')
-        train_labels = open('train_labels.pkl', 'rb')
-        validate_labels = open('validate_labels.pkl', 'rb')
         lb = preprocessing.LabelBinarizer()
         binary_encoded=np.ndarray((1,256,256,34))
         lb.fit([k for k in xrange(34)])              
         # Do the actual training
         for epoch in xrange(epochs):
+            train_images = open('../train_images.pkl', 'rb')
+            validate_images = open('../validate_images.pkl', 'rb')
+            train_labels = open('../train_labels.pkl', 'rb')
+            validate_labels = open('../validate_labels.pkl', 'rb')
             for k in xrange(c.num_training_batches):
                 train1.set_value(pickle.load(train_images))
                 train2.set_value(pickle.load(train_images))
@@ -200,24 +200,30 @@ class MultiScale(object):
                     training_y.set_value(binary_encoded)
                     cost_ij = train_mb(i)
                     print i,cost_ij
-                validation_accuracies=[]
-                for j in xrange(c.num_validation_batches):
-                    validation1.set_value(pickle.load(validate_images))
-                    validation2.set_value(pickle.load(validate_images))
-                    validation3.set_value(pickle.load(validate_images))
-                    temp=pickle.load(validate_labels)
-		    l=validation1.shape.eval()
-		    for i in xrange(l[0]):
-                        for v in xrange(256):
-                            binary_encoded[0,v,:,:]=lb.transform(temp[i][v])
-                        training_y.set_value(binary_encoded)
-                        validation_accuracies.append(validate_mb_accuracy(i))
-                validation_accuracy = np.mean(validation_accuracies)
-                print validation_accuracy
+            validation_accuracies=[]
+            for j in xrange(c.num_validation_batches):
+                validation1.set_value(pickle.load(validate_images))
+                validation2.set_value(pickle.load(validate_images))
+                validation3.set_value(pickle.load(validate_images))
+                temp=pickle.load(validate_labels)
+	        l=validation1.shape.eval()
+	        for i in xrange(l[0]):
+                    for v in xrange(256):
+                        binary_encoded[0,v,:,:]=lb.transform(temp[i][v])
+                    validation_y.set_value(binary_encoded)
+                    validation_accuracies.append(validate_mb_accuracy(i))
+            validation_accuracy = np.mean(validation_accuracies)
+            print validation_accuracy
+            train_images.close()
+            validate_images.close()
+            train_labels.close()
+            validate_labels.close()
 
-        train_images.close()
-        validate_images.close()
-        train_labels.close()
-        validate_labels.close()        
+        f=file('neural_net_weights.pkl','wb')
+        for param in self.params:
+            print param.eval()
+            cPickle.dump(param.eval(),f);
+        f.close()
+        
         
         
