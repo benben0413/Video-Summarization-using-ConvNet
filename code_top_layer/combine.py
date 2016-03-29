@@ -4,18 +4,22 @@ from theano.tensor.signal import downsample
 from collections import Counter
 from copy import deepcopy
 import cv2,sys
-import pickle
+import cPickle
 import random
 import theano
 
+" attention function receives list of 10 level segmentations , upsampled features from convnet, labels "
 def attention_func(segments,upsampled_features,labels):
     num_components=[]
     masked_components=[]
     true_distribution=[]
     width=[(0,0),(0,0)]
+    " processing each level of segmentation "
     for segments_fz in segments:
+        " Different components "
         comps=np.unique(segments_fz)
         num_components.append(len(comps))
+        " Processing each component "
         for val in comps:
             points=[]
             temp=[]
@@ -23,20 +27,24 @@ def attention_func(segments,upsampled_features,labels):
             for r,c in zip(a,b):
                 points.append([[r,c]])
                 temp.append(labels[r,c])
+            " Ground Distribution calculation "
             k=Counter(temp)
             temp=[]
-            for a in range(33):
+            for a in range(34):
                 temp.append(k[a])
             s=sum(temp)
-            for a in range(33):
+            for a in range(34):
                 temp[a]=float(temp[a])/s
             true_distribution.append(temp)
+            " Bounding rectangle for the component "
             x,y,w,h=cv2.boundingRect(np.asarray(points))
             temp=deepcopy(segments_fz[x:x+w,y:y+h])
             features=deepcopy(upsampled_features[:,x:x+w,y:y+h])
             temp[temp!=val]=0
             temp[temp==val]=1
+            " Background subtraction "
             masked=np.multiply(temp,features)
+            " Decide width for padding "
             if(w%3==0):
                 width[0]=(0,0)
             elif(w%3==1):
@@ -49,10 +57,14 @@ def attention_func(segments,upsampled_features,labels):
                 width[1]=(1,1)
             else:
                 width[1]=(0,1)
-            
+
+            "padding "
             padded=pad(masked,width).eval()
+            " Elastic max pooling "
             object_descriptor=elastic_max_pool(padded).eval()
+            " list of masked components "
             masked_components.append(object_descriptor)
+    " True distribution is list of list of density of all 34 labels in components in image "
     return masked_components,true_distribution
             
 def pad(x, width, val=0, batch_ndim=1):
@@ -99,18 +111,17 @@ f2=file('train_scale_invariant_features.pkl','rb')
 f3=file('train_labels.pkl','rb')
 f4=file('train_top_layer.pkl','wb')"""
 for i in range(36):
-    label_list=pickle.load(f3)
+    label_list=cPickle.load(f3)
     descriptors=[]
     ground_distribution=[]
     for k,labels in enumerate(label_list):
-        segments=pickle.load(f1)
+        segments=cPickle.load(f1)
         temp1,temp2=attention_func(segments,upsampled_features,labels)
         descriptors=descriptors+temp1
         ground_distribution=ground_distribution+temp2
+        " Dump object descriptors and ground distribution tuple "
         if(k!=0 and (k+1)%5==0):
-            random.shuffle(descriptors)
-            random.shuffle(ground_distribution)
-            pickle.dump((descriptors,ground_distribution),f4)
+            cPickle.dump((descriptors,ground_distribution),f4)
             descriptors=[]
             ground_distribution=[]
 f1.close()

@@ -6,6 +6,10 @@ from theano.tensor.nnet import softmax
 from theano.tensor import shared_randomstreams
 from theano.tensor import tanh
 
+def shared(data):
+        shared_x = theano.shared(
+            np.asarray(data, dtype=theano.config.floatX), borrow=True)
+        return shared_x
 
 class Network(object):
 
@@ -22,15 +26,16 @@ class Network(object):
             layer.set_inpt(prev_layer.output, self.mini_batch_size)
         self.output = (self.layers[-1].output,self.layers[-1].y_out)
 
-    def SGD(self, training_data, epochs, mini_batch_size, eta,
-            validation_data, lmbda=0.0):
+    def SGD(self, epochs, mini_batch_size, eta,lmbda=0.0):
         """Train the network using mini-batch stochastic gradient descent."""
-        training_x, training_y = training_data
-        validation_x, validation_y = validation_data
+        training_x=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
+        training_y=theano.shared(np.ndarray((1,1),dtype=theano.config.floatX),borrow=True)
+        validation_x=theano.shared(np.ndarray((1,1,1,1),dtype=theano.config.floatX),borrow=True)
+        validation_y=theano.shared(np.ndarray((1,1),dtype=theano.config.floatX),borrow=True)
 
         # compute number of minibatches for training, validation and testing
-        num_training_batches = training_x.shape[0].eval()/mini_batch_size
-        num_validation_batches =validation_x.shape[0].eval()/mini_batch_size
+        num_training_batches = 360
+        num_validation_batches = 180
         # define the (regularized) cost function, symbolic gradients, and updates
         l2_norm_squared = sum([(layer.w**2).sum() for layer in self.layers])
         cost = self.layers[-1].divergence(self)+\
@@ -59,14 +64,29 @@ class Network(object):
                 validation_y[i*self.mini_batch_size: (i+1)*self.mini_batch_size]
             })
 
-        # Do the actual training
-        best_validation_accuracy = 0.0
+        
         for epoch in xrange(epochs):
+            f1=file('train_top_layer.pkl','rb')
+            f2=file('validate_top_layer.pkl','rb')
+            validation_accuracies=[]
             for minibatch_index in xrange(num_training_batches):
-                cost_ij = train_mb(minibatch_index)
-                validation_accuracy = np.mean([validate_mb_accuracy(j) for j in xrange(num_validation_batches)])
-            print("Epoch {0}: validation accuracy {1:.5%}".format(epoch, validation_accuracy))
-        print("Finished training network.")
+                x,y=pickle.load(train_images)
+                training_x.set_value(x)
+                training_y.set_value(y)
+                l=training_x.shape.eval()
+                for i in xrange(l[0]):
+                    cost_ij = train_mb(i)
+                    print cost_ij
+            for minibatch_index in xrange(num_validation_batches):
+                x,y=pickle.load(validation_images)
+                validation_x.set_value(x)
+                validation_y.set_value(y)
+                l=validation_x.shape.eval()
+                for i in xrange(l[0]):
+                    validation_accuracies.append(validate_mb_accuracy(i))
+             validation_accuracy = np.mean(validation_accuracies)
+             print validation_accuracy
+
 
 #### Define layer types
 
@@ -99,23 +119,25 @@ class SoftmaxLayer(object):
     def __init__(self, n_in, n_out):
         self.n_in = n_in
         self.n_out = n_out
-        # Initialize weights and biases
+        # Initialize weights 
         self.w = theano.shared(
             np.zeros((n_in, n_out), dtype=theano.config.floatX),
             name='w', borrow=True)
-        self.b = theano.shared(
-            np.zeros((n_out,), dtype=theano.config.floatX),
-            name='b', borrow=True)
-        self.params = [self.w, self.b]
+        self.params = [self.w]
 
     def set_inpt(self, inpt, mini_batch_size):
         self.inpt = inpt.reshape((mini_batch_size, self.n_in))
-        self.output = softmax(T.dot(self.inpt, self.w) + self.b)
+        "predicted label distribution for the component "
+        self.output = softmax(T.dot(self.inpt, self.w))
+        "predicted label for the component "
         self.y_out = T.argmax(self.output, axis=1)
 
     def prediction(self):
+        "index of nonzero elements in output"
         temp=T.nonzero(self.output)[0]
+        "selected nonzero elements of output"
         output=T.take(self.output,temp)
+        "predicted confidence cost, predicted label "
         return -T.sum(output * T.log10(output)),self.y_out
 
     def accuracy(self, y):
@@ -124,7 +146,9 @@ class SoftmaxLayer(object):
 
     def divergence(self, net):
         "Return the KL divergence."
+        "index of nonzero elements in output"
         temp=T.nonzero(self.output)[0]
+        "remove all zero elements of predicted output and ground truth to avoid division by zero and log of zero"
         y1=T.take(net.y,temp)
         output1=T.take(self.output,temp)
         temp=T.nonzero(y1)[0]

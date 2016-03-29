@@ -1,4 +1,4 @@
-import pickle
+import cPickle
 import numpy as np
 import cv2
 import theano
@@ -20,28 +20,17 @@ else:
     print "Running with a CPU.  If this is not desired, then the modify "+\
         "code.py to set\nthe GPU flag to True."
 
-def shared(data):
-        """Place the data into shared variables.  This allows Theano to copy
-        the data to the GPU, if one is available.
-        """
-        shared_x = theano.shared(
-            np.asarray(data, dtype=theano.config.floatX), borrow=True)
-        return shared_x
+net=Network([FullyConnectedLayer(6912,1024,activation_fn=tanh),SoftmaxLayer(1024,33)],1)
 
-net=Network([FullyConnectedLayer(6912,1024,activation_fn=tanh),SoftmaxLayer(1024,33)],10)
-f1=file('train_top_layer.pkl','rb')
-f2=file('validate_top_layer.pkl','rb')
-f3=file('top_layer_model.pkl','wb')
+f1=file('top_layer_model.pkl','wb')
 epochs=20
-mini_batch_size=30
+mini_batch_size=1
 eta=0.01
-for i in range(200):
-    descriptors,ground_distribution=pickle.load(f1)
+"""for i in range(200):
+    descriptors,ground_distribution=cPickle.load(f1)
     training_data=(shared(descriptors),shared(ground_distribution))
-    desc,distribution=pickle.load(f2)
-    validation_data=(shared(desc),shared(distribution))
-    net.SGD(training_data, epochs, mini_batch_size,eta, validation_data)
-pickle.dump(net,f3)
+    desc,distribution=cPickle.load(f2)
+    validation_data=(shared(desc),shared(distribution))"""
+net.SGD(epochs, mini_batch_size,eta,0.01)
+cPickle.dump(net,f1)
 f1.close()
-f2.close()
-f3.close()
